@@ -80,13 +80,13 @@ def read_tree (tree_oid):
         with open (path, 'wb') as f:
             f.write (data.get_object (oid))
 
+
 def commit (message):
     commit = f'tree {write_tree ()}\n'
 
     HEAD = data.get_HEAD ()
     if HEAD:
         commit += f'parent {HEAD}\n'
-
 
     commit += '\n'
     commit += f'{message}\n'
@@ -96,6 +96,7 @@ def commit (message):
     data.set_HEAD (oid)
 
     return oid
+
 
 def checkout (oid):
     commit = get_commit (oid)
@@ -107,7 +108,9 @@ def create_tag (name, oid):
     # TODO Actually create the tag
     pass
 
+
 Commit = namedtuple ('Commit', ['tree', 'parent', 'message'])
+
 
 def get_commit (oid):
     parent = None
