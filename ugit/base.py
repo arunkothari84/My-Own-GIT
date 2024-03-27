@@ -1,8 +1,9 @@
 import itertools
 import operator
 import os
+import string
 
-from collections import namedtuple
+from collections import deque, namedtuple
 
 from . import data
 
@@ -84,7 +85,7 @@ def read_tree (tree_oid):
 def commit (message):
     commit = f'tree {write_tree ()}\n'
 
-    HEAD = data.get_HEAD ()
+    HEAD = data.get_ref ('HEAD')
     if HEAD:
         commit += f'parent {HEAD}\n'
 
@@ -93,7 +94,7 @@ def commit (message):
 
     oid = data.hash_object (commit.encode (), 'commit')
 
-    data.set_HEAD (oid)
+    data.update_ref ('HEAD', oid)
 
     return oid
 
@@ -101,12 +102,15 @@ def commit (message):
 def checkout (oid):
     commit = get_commit (oid)
     read_tree (commit.tree)
-    data.set_HEAD (oid)
+    data.update_ref ('HEAD', oid)
 
 
 def create_tag (name, oid):
-    # TODO Actually create the tag
-    pass
+    data.update_ref (f'refs/tags/{name}', oid)
+
+
+def create_branch (name, oid):
+    data.update_ref (f'refs/heads/{name}', oid)
 
 
 Commit = namedtuple ('Commit', ['tree', 'parent', 'message'])
@@ -128,6 +132,44 @@ def get_commit (oid):
 
     message = '\n'.join (lines)
     return Commit (tree=tree, parent=parent, message=message)
+
+
+def iter_commits_and_parents (oids):
+    oids = deque (oids)
+    visited = set ()
+
+    while oids:
+        oid = oids.popleft ()
+        if not oid or oid in visited:
+            continue
+        visited.add (oid)
+        yield oid
+
+        commit = get_commit (oid)
+        # Return parent next
+        oids.appendleft (commit.parent)
+
+
+def get_oid (name):
+    if name == '@': name = 'HEAD'
+
+    # Name is ref
+    refs_to_try = [
+        f'{name}',
+        f'refs/{name}',
+        f'refs/tags/{name}',
+        f'refs/heads/{name}',
+    ]
+    for ref in refs_to_try:
+        if data.get_ref (ref):
+            return data.get_ref (ref)
+
+    # Name is SHA1
+    is_hex = all (c in string.hexdigits for c in name)
+    if len (name) == 40 and is_hex:
+        return name
+
+    assert False, f'Unknown name {name}'
 
 
 def is_ignored (path):
